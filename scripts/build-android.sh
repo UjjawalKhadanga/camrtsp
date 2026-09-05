@@ -12,4 +12,4 @@ if ! command -v cargo-ndk >/dev/null 2>&1; then
 fi
 
 mkdir -p "$target_dir"
-ANDROID_NDK_HOME="$android_ndk" cargo ndk --manifest-path "$project_root/Cargo.toml" --platform 26 --target arm64-v8a --target x86_64 --output-dir "$target_dir" build --release -p camrtsp-android
+ANDROID_NDK_HOME="$android_ndk" cargo ndk --manifest-path "$project_root/Cargo.toml" --platform 26 --target arm64-v8a --target x86_64 --output-dir "$target_dir" build --locked --release -p camrtsp-android

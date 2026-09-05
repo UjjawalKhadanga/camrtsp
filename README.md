@@ -99,6 +99,10 @@ cargo build --release -p camrtsp
 ./target/release/camrtsp --camera 0
 ```
 
+The first streaming run requests camera access from macOS. If access was
+previously denied, enable camrtsp (or the terminal that launched it) in
+**System Settings → Privacy & Security → Camera**.
+
 On success:
 
 ```
@@ -217,8 +221,11 @@ Pass means a picture in the player, or a stable TCP PLAY that delivers RTP.
 
 This is **v0.1.0-beta.1**. Crate version is `0.1.0`.
 
-- macOS `request_keyframe` is not wired; a late joiner waits up to the GOP
-- Android `nativeGetStats` always reports `viewers:0`
+- Late joiners trigger a platform keyframe request and recover on a clean H.264
+  keyframe with current SPS/PPS
+- Stream status reports live viewer, frame, readiness, and frame-age data on
+  desktop and Android
+- Live camera-to-player checks remain hardware-dependent and are not run in CI
 - Linux, iOS, and RTSPS are not in this release
 
 See [CHANGELOG.md](CHANGELOG.md).

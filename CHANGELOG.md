@@ -18,9 +18,27 @@ this release is the `v0.1.0-beta.1` git tag.
 
 ### Known limits
 
-- macOS `request_keyframe` is not wired; new viewers wait up to the GOP
-  interval (default 2 seconds)
-- Android `nativeGetStats` always reports `viewers:0`
+- Live camera-to-player checks require platform hardware and permissions and
+  are not run in CI
+- macOS release artifacts are ad-hoc signed unless a signing identity is
+  supplied, and the workflow does not notarize them
+- The Android CI artifact is debug-signed for evaluation
+
+### Reliability fixes
+
+- RTSP sessions now handle pause/resume, authentication after PLAY,
+  fragmented and pipelined requests, interleaved RTCP, bounded clients, and
+  clean shutdown
+- TCP and UDP transports are validated and tested, including UDP packet
+  delivery and RTCP compound packet lengths
+- Slow viewers discard dependent frames and resume from a requested keyframe
+  with current SPS/PPS; codec changes also clear stale queued frames
+- Desktop and Android expose live viewer, frame, readiness, and frame-age
+  statistics
+- macOS now negotiates a real camera format and frame rate, requests camera
+  permission, verifies AVFoundation startup, and supports forced keyframes
+- Android now negotiates compatible Camera2/MediaCodec settings, routes
+  keyframe requests to MediaCodec, and recovers from bounded transient failures
 
 ### Play the stream
 

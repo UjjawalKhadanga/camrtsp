@@ -1,166 +1,247 @@
 use camrtsp_capture::NativeCamera;
 use camrtsp_core::{AccessUnitSink, BitrateMode, CameraId, NativeVideoPipeline, StreamConfig};
 use camrtsp_server::{Broadcaster, RtspServer, TransportPolicy};
-use std::{env, process};
+use clap::{Parser, Subcommand, ValueEnum};
+use std::{
+    net::{IpAddr, SocketAddr, UdpSocket},
+    process,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::{Duration, Instant},
+};
+
+#[derive(Parser, Debug)]
+#[command(version, about = "Publish a native camera as an H.264 RTSP stream")]
+struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+    #[arg(long, default_value = "0")]
+    camera: String,
+    #[arg(long, default_value = "1280x720", value_parser = resolution)]
+    resolution: (u32, u32),
+    #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u32).range(1..=240))]
+    fps: u32,
+    #[arg(long, default_value = "auto", value_parser = bitrate)]
+    bitrate: BitrateMode,
+    #[arg(long, default_value_t = 2, value_parser = clap::value_parser!(u32).range(1..=60))]
+    gop: u32,
+    #[arg(long, default_value = "0.0.0.0:8554")]
+    bind: SocketAddr,
+    #[arg(long, default_value = "/camera", value_parser = stream_path)]
+    path: String,
+    #[arg(long, value_enum, default_value_t = Transport::Both)]
+    transport: Transport,
+    #[arg(long, requires = "password")]
+    username: Option<String>,
+    #[arg(
+        long,
+        env = "CAMRTSP_PASSWORD",
+        hide_env_values = true,
+        requires = "username"
+    )]
+    password: Option<String>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    Devices {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Transport {
+    Both,
+    Tcp,
+    Udp,
+}
 
 fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("devices") {
-        let camera = NativeCamera::default();
-        match camera.enumerate() {
-            Ok(devices) if args.iter().any(|arg| arg == "--json") => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&devices)
-                        .expect("camera descriptors are serializable")
-                );
-            }
-            Ok(devices) => {
-                for device in devices {
-                    println!("{}: {}", device.id, device.name);
-                }
-            }
-            Err(e) => {
-                eprintln!("Unable to enumerate cameras: {e}");
-                process::exit(1);
+    if let Err(error) = run(Args::parse()) {
+        eprintln!("camrtsp: {error}");
+        process::exit(1);
+    }
+}
+
+fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
+    let devices = NativeCamera::default().enumerate()?;
+    if let Some(Command::Devices { json }) = args.command {
+        if json {
+            println!("{}", serde_json::to_string_pretty(&devices)?);
+        } else {
+            for (index, device) in devices.iter().enumerate() {
+                println!("{index}: {} ({})", device.name, device.id);
             }
         }
-        return;
+        return Ok(());
     }
-    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
-        println!(
-            "camrtsp 0.1.0\n\nUsage: camrtsp devices [--json]\n       camrtsp --camera INDEX_OR_ID [--resolution WIDTHxHEIGHT] [--fps FPS] [--bitrate auto|BPS] [--gop SECONDS] [--bind ADDRESS] [--path /camera] [--transport both|tcp|udp] [--username USER --password PASS]\n\nStreams H.264 using native platform camera and encoder APIs."
-        );
-        return;
-    }
-    let bind = value_after(&args, "--bind").unwrap_or("0.0.0.0:8554");
-    let requested_camera = value_after(&args, "--camera").unwrap_or("0");
-    let devices = NativeCamera::default().enumerate().unwrap_or_else(|e| {
-        eprintln!("Unable to enumerate cameras: {e}");
-        process::exit(1)
-    });
-    let camera = requested_camera
-        .parse::<usize>()
-        .ok()
-        .and_then(|index| devices.get(index))
-        .map(|device| device.id.0.clone())
-        .or_else(|| devices.iter().find(|device| device.id.0 == requested_camera).map(|device| device.id.0.clone()))
-        .unwrap_or_else(|| {
-            eprintln!("Camera '{requested_camera}' was not found. Run 'camrtsp devices' to list available cameras.");
-            process::exit(2)
-        });
-    let fps = parse(&args, "--fps", 30_u32);
-    let (width, height) = resolution(value_after(&args, "--resolution").unwrap_or("1280x720"));
+    let camera = devices
+        .iter()
+        .find(|device| device.id.0 == args.camera)
+        .or_else(|| {
+            args.camera
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| devices.get(index))
+        })
+        .ok_or("Camera not found. Run 'camrtsp devices' to list available cameras.")?;
     let config = StreamConfig {
-        camera: CameraId(camera.clone()),
-        requested_width: width,
-        requested_height: height,
-        requested_fps: fps,
-        bitrate: bitrate(value_after(&args, "--bitrate").unwrap_or("auto")),
-        gop_seconds: parse(&args, "--gop", 2_u32).max(1),
+        camera: CameraId(camera.id.0.clone()),
+        requested_width: args.resolution.0,
+        requested_height: args.resolution.1,
+        requested_fps: args.fps,
+        bitrate: args.bitrate,
+        gop_seconds: args.gop,
     };
-    let supplied_password = value_after(&args, "--password")
-        .map(str::to_owned)
-        .or_else(|| env::var("CAMRTSP_PASSWORD").ok());
-    let credentials = match (
-        value_after(&args, "--username"),
-        supplied_password.as_deref(),
-    ) {
-        (Some(username), Some(password)) => Some((username.to_string(), password.to_string())),
-        (None, None) => None,
-        _ => {
-            eprintln!("--username and --password must be supplied together");
-            process::exit(2)
-        }
-    };
-    let path = value_after(&args, "--path").unwrap_or("/camera");
-    if !path.starts_with('/') {
-        eprintln!("--path must start with '/'");
-        process::exit(2);
-    }
-    let transport = match value_after(&args, "--transport").unwrap_or("both") {
-        "both" => TransportPolicy::Both,
-        "tcp" => TransportPolicy::Tcp,
-        "udp" => TransportPolicy::Udp,
-        value => {
-            eprintln!("Invalid transport '{value}'; use both, tcp, or udp");
-            process::exit(2)
-        }
-    };
+    config.validate()?;
+    let credentials = args.username.zip(args.password);
     let broadcaster = Broadcaster::default();
     let server = RtspServer::bind_with_transport(
-        bind,
-        path,
+        &args.bind.to_string(),
+        &args.path,
         broadcaster.clone(),
-        fps,
+        args.fps,
         credentials,
-        transport,
-    )
-    .unwrap_or_else(|e| {
-        eprintln!("Unable to bind {bind}: {e}");
-        process::exit(1)
-    });
+        match args.transport {
+            Transport::Both => TransportPolicy::Both,
+            Transport::Tcp => TransportPolicy::Tcp,
+            Transport::Udp => TransportPolicy::Udp,
+        },
+    )?;
+    let address = server.local_addr()?;
     let publisher = broadcaster.clone();
     let config_publisher = broadcaster.clone();
     let sink = AccessUnitSink::new(
-        move |access_unit| publisher.publish(access_unit),
-        move |codec_config| config_publisher.set_codec_config(codec_config),
+        move |unit| publisher.publish(unit),
+        move |codec| config_publisher.set_codec_config(codec),
     );
     let mut capture = NativeCamera::default();
-    let negotiated = capture.start(config, sink).unwrap_or_else(|e| {
-        eprintln!("Unable to start camera: {e}");
-        process::exit(1)
-    });
-    println!("Camera: {camera}");
-    println!(
-        "Streaming: rtsp://127.0.0.1:{}{}",
-        server.local_addr().unwrap().port(),
-        path
-    );
-    println!(
-        "Resolution: {}x{} @ {} FPS",
-        negotiated.width, negotiated.height, negotiated.fps_num
-    );
-    println!("Codec: H.264");
-    println!("Press Ctrl+C to stop");
-    server.run().unwrap_or_else(|e| {
-        eprintln!("Server error: {e}");
-        process::exit(1)
-    });
+    let negotiated = capture.start(config, sink)?;
+    broadcaster.set_frame_rate(negotiated.fps_num, negotiated.fps_den);
+    let stopping = Arc::new(AtomicBool::new(false));
+    let server_stop = stopping.clone();
+    // Keep platform capture objects on their owning thread; only RTSP runs here.
+    let worker = thread::spawn(move || server.run_until(server_stop));
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        runtime.block_on(async {
+            let shutdown = tokio::signal::ctrl_c();
+            tokio::pin!(shutdown);
+            let started = Instant::now();
+            let mut announced = false;
+            loop {
+                tokio::select! {
+                    result = &mut shutdown => { result?; return Ok::<_, Box<dyn std::error::Error>>(()); }
+                    _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+                }
+                if worker.is_finished() { return Err("RTSP server stopped unexpectedly".into()); }
+                if broadcaster.take_keyframe_request() && let Err(error) = capture.request_keyframe() {
+                    eprintln!("Keyframe request unavailable; waiting for the camera's next keyframe: {error}");
+                }
+                let stats = broadcaster.stats();
+                if !announced && stats.ready {
+                    println!("Camera: {}", camera.name);
+                    for address in stream_addresses(address) { println!("Streaming: rtsp://{address}{}", args.path); }
+                    println!("Resolution: {}x{} @ {:.3} FPS (configured)", negotiated.width, negotiated.height,
+                        negotiated.fps_num as f64 / negotiated.fps_den as f64);
+                    println!("Encoder: {} (hardware: {})", negotiated.encoder_name, negotiated.hardware_encoder);
+                    println!("Press Ctrl+C to stop");
+                    announced = true;
+                }
+                if (!announced && started.elapsed() > Duration::from_secs(15)) || stats.last_frame_age_ms.is_some_and(|age| age > 15_000) {
+                    return Err("Camera stopped delivering H.264 frames. Check camera permissions, connection, and encoder availability.".into());
+                }
+            }
+        })
+    })();
+    stopping.store(true, Ordering::Relaxed);
+    let capture_result = capture.stop();
+    let server_result = worker.join().map_err(|_| "RTSP server thread panicked")?;
+    result?;
+    capture_result?;
+    server_result?;
+    Ok(())
 }
 
-fn resolution(value: &str) -> (u32, u32) {
+fn stream_addresses(bound: SocketAddr) -> Vec<SocketAddr> {
+    if !bound.ip().is_unspecified() {
+        return vec![bound];
+    }
+    let mut addresses = vec![SocketAddr::new(
+        if bound.is_ipv4() {
+            IpAddr::from([127, 0, 0, 1])
+        } else {
+            IpAddr::V6(std::net::Ipv6Addr::LOCALHOST)
+        },
+        bound.port(),
+    )];
+    // UDP connect selects a local interface without sending traffic.
+    let destination = if bound.is_ipv4() {
+        "192.0.2.1:9"
+    } else {
+        "[2001:db8::1]:9"
+    };
+    if let Ok(socket) = UdpSocket::bind(SocketAddr::new(bound.ip(), 0))
+        && socket.connect(destination).is_ok()
+        && let Ok(local) = socket.local_addr()
+        && !local.ip().is_loopback()
+        && !local.ip().is_unspecified()
+    {
+        addresses.push(SocketAddr::new(local.ip(), bound.port()));
+    }
+    addresses
+}
+
+fn resolution(value: &str) -> Result<(u32, u32), String> {
     value
         .split_once('x')
-        .and_then(|(width, height)| Some((width.parse().ok()?, height.parse().ok()?)))
-        .unwrap_or_else(|| {
-            eprintln!("Invalid resolution '{value}'; expected WIDTHxHEIGHT");
-            process::exit(2)
-        })
+        .and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?)))
+        .filter(|(w, h)| (1..=16384).contains(w) && (1..=16384).contains(h))
+        .ok_or_else(|| "expected WIDTHxHEIGHT with each dimension in 1–16384".into())
 }
 
-fn parse<T: std::str::FromStr>(args: &[String], flag: &str, default: T) -> T {
-    value_after(args, flag)
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(default)
-}
-
-fn bitrate(value: &str) -> BitrateMode {
+fn bitrate(value: &str) -> Result<BitrateMode, String> {
     if value.eq_ignore_ascii_case("auto") {
-        return BitrateMode::Auto;
+        return Ok(BitrateMode::Auto);
     }
     value
         .parse::<u32>()
+        .ok()
+        .filter(|n| *n > 0 && *n <= i32::MAX as u32)
         .map(BitrateMode::BitsPerSecond)
-        .unwrap_or_else(|_| {
-            eprintln!("Invalid bitrate '{value}'; use auto or bits per second");
-            process::exit(2)
-        })
+        .ok_or_else(|| "expected auto or bitrate in 1–2147483647".into())
 }
 
-fn value_after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
-    args.iter()
-        .position(|arg| arg == flag)
-        .and_then(|i| args.get(i + 1))
-        .map(String::as_str)
+fn stream_path(value: &str) -> Result<String, String> {
+    if camrtsp_server::valid_path(value) {
+        Ok(value.to_string())
+    } else {
+        Err("expected an absolute RTSP path without whitespace, query, or fragment".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn invalid_arguments_are_rejected_before_camera_access() {
+        for args in [
+            vec!["camrtsp", "--fps", "oops"],
+            vec!["camrtsp", "--fps", "0"],
+            vec!["camrtsp", "--resolution", "0x720"],
+            vec!["camrtsp", "--bitrate", "0"],
+            vec!["camrtsp", "--gop", "61"],
+            vec!["camrtsp", "--unknown"],
+            vec!["camrtsp", "--path", "/bad path"],
+        ] {
+            assert!(Args::try_parse_from(args).is_err());
+        }
+        assert!(Args::try_parse_from(["camrtsp", "devices", "--json"]).is_ok());
+    }
 }

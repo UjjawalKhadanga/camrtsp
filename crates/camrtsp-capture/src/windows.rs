@@ -459,34 +459,41 @@ fn worker_inner(
         .send(Ok(negotiated))
         .map_err(|_| CamRtspError("caller abandoned startup".into()))?;
 
-    loop {
-        if let Some(error) = callback_state.failure() {
-            return Err(CamRtspError(error));
+    let result = (|| -> Result<()> {
+        loop {
+            if let Some(error) = callback_state.failure() {
+                return Err(CamRtspError(error));
+            }
+            if callback_state.take_discontinuity() {
+                // A raw-frame drop invalidates the encoder cadence. A force-keyframe
+                // request is best effort because direct H.264 camera output cannot
+                // expose this control through Media Foundation.
+                let _ = mode.request_keyframe();
+            }
+            match commands.try_recv() {
+                Ok(WorkerCommand::Stop) | Err(TryRecvError::Disconnected) => break,
+                Ok(WorkerCommand::RequestKeyframe) => {
+                    if let Err(error) = mode.request_keyframe() {
+                        eprintln!("Keyframe request unavailable: {error}");
+                    }
+                }
+                Err(TryRecvError::Empty) => {}
+            }
+            match sample_rx.recv_timeout(Duration::from_millis(50)) {
+                Ok(sample) => mode.consume(sample, &sink)?,
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
         }
-        if callback_state.take_discontinuity() {
-            // A raw-frame drop invalidates the encoder cadence. A force-keyframe
-            // request is best effort because direct H.264 camera output cannot
-            // expose this control through Media Foundation.
-            let _ = mode.request_keyframe();
-        }
-        match commands.try_recv() {
-            Ok(WorkerCommand::Stop) | Err(TryRecvError::Disconnected) => break,
-            Ok(WorkerCommand::RequestKeyframe) => mode.request_keyframe()?,
-            Err(TryRecvError::Empty) => {}
-        }
-        match sample_rx.recv_timeout(Duration::from_millis(50)) {
-            Ok(sample) => mode.consume(sample, &sink)?,
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => break,
-        }
-    }
+        Ok(())
+    })();
     callback_state.stop();
     let _ = mode.shutdown(&sink);
     unsafe {
         let _ = reader.Flush(MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32);
         let _ = source.Shutdown();
     }
-    Ok(())
+    result
 }
 
 enum PipelineMode {

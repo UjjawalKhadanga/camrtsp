@@ -83,6 +83,20 @@ pub struct StreamConfig {
     pub gop_seconds: u32,
 }
 
+impl StreamConfig {
+    pub fn validate(&self) -> Result<()> {
+        if !(1..=16384).contains(&self.requested_width)
+            || !(1..=16384).contains(&self.requested_height)
+            || !(1..=240).contains(&self.requested_fps)
+            || !(1..=60).contains(&self.gop_seconds)
+            || matches!(self.bitrate, BitrateMode::BitsPerSecond(n) if n == 0 || n > i32::MAX as u32)
+        {
+            return Err(CamRtspError("resolution must be 1–16384 per dimension, FPS 1–240, GOP 1–60 seconds, and bitrate 1–2147483647".into()));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct NegotiatedStreamConfig {
     pub camera: CameraDescriptor,

@@ -9,7 +9,7 @@ camrtsp-core.workspace = true
 bytes.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cidre = { version = "0.24.5", default-features = false, features = ["av", "vt", "dispatch", "macos_12_0"] }
+cidre = { version = "0.24.5", default-features = false, features = ["av", "vt", "dispatch", "blocks", "macos_12_0"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { workspace = true, features = [

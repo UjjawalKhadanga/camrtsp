@@ -17,6 +17,7 @@ $zip = "$stage.zip"
 Push-Location $repoRoot
 try {
     cargo build --locked --release --target $Target -p camrtsp
+    if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
     if (-not (Test-Path $binary)) {
         throw "Expected release binary was not produced: $binary"
     }
@@ -24,6 +25,9 @@ try {
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
     Copy-Item -Force $binary (Join-Path $stage "camrtsp.exe")
     Copy-Item -Force (Join-Path $repoRoot "README.md") (Join-Path $stage "README.md")
+
+    Copy-Item -Force (Join-Path $repoRoot "LICENSE-MIT") $stage
+    Copy-Item -Force (Join-Path $repoRoot "LICENSE-APACHE") $stage
 
     if ($CertificateThumbprint) {
         $signTool = Get-Command signtool.exe -ErrorAction Stop

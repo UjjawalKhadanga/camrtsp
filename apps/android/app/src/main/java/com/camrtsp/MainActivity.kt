@@ -26,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var path: EditText
     private lateinit var username: EditText
     private lateinit var password: EditText
+    private lateinit var transport: Spinner
     private lateinit var status: TextView
 
     private val ink = Color.rgb(16, 19, 16)
@@ -117,6 +118,11 @@ class MainActivity : AppCompatActivity() {
         bitrate = field(advanced, "Bitrate · bits per second", "3000000", InputType.TYPE_CLASS_NUMBER)
         port = field(advanced, "RTSP port", "8554", InputType.TYPE_CLASS_NUMBER)
         path = field(advanced, "Stream path", "/camera")
+        text(advanced, "Transport", 12f, muted)
+        transport = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("TCP + UDP", "TCP only", "UDP only"))
+        }
+        advanced.addView(transport)
         username = field(advanced, "Username · optional", "")
         password = field(advanced, "Password · optional", "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
         advanced.visibility = View.GONE
@@ -142,17 +148,18 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val dimensions = resolution.text.toString().split('x')
-        val validDimensions = dimensions.size == 2 && dimensions.all { (it.toIntOrNull() ?: 0) > 0 }
+        val validDimensions = dimensions.size == 2 && dimensions.all { (it.toIntOrNull() ?: 0) in 1..16384 }
         val validAuth = username.text.isNullOrEmpty() == password.text.isNullOrEmpty()
         if (!validDimensions || (fps.text.toString().toIntOrNull() ?: 0) !in 1..240 ||
             (bitrate.text.toString().toIntOrNull() ?: 0) <= 0 ||
             (port.text.toString().toIntOrNull() ?: 0) !in 1..65535 ||
-            !path.text.toString().startsWith("/") || !validAuth) {
+            !path.text.toString().matches(Regex("/[!-~]*")) || path.text.toString().any { it == '?' || it == '#' } || path.text.toString().contains("//") || !validAuth) {
             StreamService.statusMessage = "Check resolution, FPS (1–240), bitrate, port (1–65535), and path (/). Supply both auth fields or neither."
             status.text = StreamService.statusMessage
             return
         }
         val intent = Intent(this, StreamService::class.java).apply {
+            putExtra(StreamService.TRANSPORT, transport.selectedItemPosition)
             putExtra(StreamService.CAMERA, camera.text.toString())
             putExtra(StreamService.RESOLUTION, resolution.text.toString())
             putExtra(StreamService.FPS, fps.text.toString().toIntOrNull() ?: 30)
@@ -163,6 +170,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(StreamService.PASSWORD, password.text.toString())
         }
         ContextCompat.startForegroundService(this, intent)
+        StreamService.isStreaming = true
         StreamService.statusMessage = "Starting rtsp://<LAN-IP>:${port.text}${path.text}"
         status.text = StreamService.statusMessage
     }

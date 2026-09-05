@@ -9,3 +9,5 @@ camrtsp-core.workspace = true
 camrtsp-capture.workspace = true
 camrtsp-server.workspace = true
 serde_json.workspace = true
+clap = { workspace = true, features = ["env"] }
+tokio.workspace = true

@@ -41,7 +41,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: camrtsp-windows-x64
-          path: dist/*
+          path: |
+            dist/*.zip
+            dist/*.sha256
 
   package-macos:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -56,4 +58,57 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: camrtsp-macos
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
+      - uses: dtolnay/rust-toolchain@1.91.1
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - run: cargo install cargo-ndk --locked --version 4.1.2
+      - run: ./scripts/build-android.sh
+      - working-directory: apps/android
+        run: ./gradlew assembleDebug lintDebug testDebugUnitTest
+      - run: |
+          mkdir -p dist
+          cp apps/android/app/build/outputs/apk/debug/app-debug.apk dist/camrtsp-android-debug.apk
+          cd dist
+          sha256sum camrtsp-android-debug.apk > camrtsp-android-debug.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: camrtsp-android-debug
           path: dist/*
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package-windows, package-macos, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: camrtsp-*
+          merge-multiple: true
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: true
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            Native camera-to-RTSP beta. See README and CHANGELOG for supported platforms and hardware validation limits.
+            The Android APK is a debug build signed with an ephemeral CI debug key, for evaluation only.
+            It may require uninstalling a previous debug build before installation. Stable Android distribution requires a persistent release signing key.
+            macOS uses ad-hoc signing unless a signing identity is configured; notarization is not provided by this workflow.

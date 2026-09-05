@@ -18,6 +18,7 @@ impl NativeVideoPipeline for NativeCamera {
         config: StreamConfig,
         sink: AccessUnitSink,
     ) -> Result<NegotiatedStreamConfig> {
+        config.validate()?;
         self.inner.start(config, sink)
     }
 
@@ -45,14 +46,22 @@ mod platform {
             Session, VideoDataOutput, VideoDataOutputSampleBufDelegate,
             VideoDataOutputSampleBufDelegateImpl,
         },
-        cf, cm, define_obj_type, dispatch, ns, objc,
+        blocks, cf, cm, define_obj_type, dispatch, ns, objc,
         vt::{
             self,
             compression::{encoder_spec_keys, profile_level},
-            compression_properties::keys,
+            compression_properties::{frame_keys, keys},
         },
     };
-    use std::ffi::c_void;
+    use std::{
+        ffi::c_void,
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+            mpsc,
+        },
+        time::Duration,
+    };
 
     #[derive(Default)]
     pub struct PlatformPipeline {
@@ -60,6 +69,7 @@ mod platform {
     }
 
     struct RunningPipeline {
+        force_keyframe: Arc<AtomicBool>,
         session: arc::R<Session>,
         #[allow(dead_code)]
         input: arc::R<av::CaptureDeviceInput>,
@@ -82,6 +92,7 @@ mod platform {
     }
 
     struct CaptureDelegateInner {
+        force_keyframe: Arc<AtomicBool>,
         encoder: arc::R<vt::CompressionSession>,
     }
 
@@ -106,12 +117,22 @@ mod platform {
                 return;
             };
             let mut flags = None;
-            let _ = self.inner().encoder.enc_frame(
+            let force = self.inner().force_keyframe.swap(false, Ordering::Relaxed);
+            let props = cf::DictionaryOf::<cf::String, cf::Type>::with_keys_values(
+                &[frame_keys::force_key_frame()],
+                &[cf::Boolean::value_true()],
+            );
+            if let Err(error) = self.inner().encoder.encode_frame(
                 image,
                 sample_buf.pts(),
                 sample_buf.duration(),
+                force.then_some(&props),
+                std::ptr::null_mut(),
                 &mut flags,
-            );
+            ) {
+                self.inner().force_keyframe.store(true, Ordering::Relaxed);
+                eprintln!("VideoToolbox frame encode failed: {error:?}");
+            }
         }
     }
 
@@ -126,7 +147,27 @@ mod platform {
                     id: CameraId(device.unique_id().to_string()),
                     name: device.localized_name().to_string(),
                     position: CameraPosition::External,
-                    formats: Vec::new(),
+                    formats: device
+                        .formats()
+                        .iter()
+                        .flat_map(|format| {
+                            let dims = format.format_desc().dims();
+                            format
+                                .video_supported_frame_rate_ranges()
+                                .iter()
+                                .map(|range| {
+                                    let duration = range.min_frame_duration();
+                                    CameraFormat {
+                                        width: dims.width as u32,
+                                        height: dims.height as u32,
+                                        fps_num: duration.scale as u32,
+                                        fps_den: duration.value as u32,
+                                        pixel_format: PixelFormat::Unknown,
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect(),
                 })
                 .collect::<Vec<_>>();
             if cameras.is_empty() {
@@ -144,20 +185,82 @@ mod platform {
             if self.running.is_some() {
                 return Err(CamRtspError("camera pipeline is already running".into()));
             }
+            ensure_camera_authorized()?;
             let device_id = ns::String::with_str(&config.camera.0);
-            let device = av::CaptureDevice::with_unique_id(&device_id)
+            let mut device = av::CaptureDevice::with_unique_id(&device_id)
                 .ok_or_else(|| CamRtspError(format!("camera '{}' was not found", config.camera)))?;
             let input = av::CaptureDeviceInput::with_device(&device)
                 .map_err(|error| CamRtspError(format!("unable to open camera: {error}")))?;
             let actual = choose_preset(&device, config.requested_width, config.requested_height);
-            let fps = config.requested_fps.max(1);
-            let bitrate = config.bitrate.resolve(actual.0, actual.1, fps);
-            let context = Box::new(EncoderContext {
-                sink,
-                default_duration_90khz: 90_000 / fps,
+            let mut output = VideoDataOutput::new();
+            output.set_always_discard_late_video_frames(true);
+            let mut session = Session::new();
+            if !session.can_add_input(&input) || !session.can_add_output(&output) {
+                return Err(CamRtspError(
+                    "camera session cannot attach capture input/output".into(),
+                ));
+            }
+            session.configure(|session| {
+                session.add_input(&input);
+                session.add_output(&output);
             });
-            let context_ptr = Box::into_raw(context);
-            let (encoder, hardware_encoder) = match new_encoder(
+            session
+                .set_session_preset(preset_for(actual.0, actual.1))
+                .map_err(|e| CamRtspError(format!("camera rejected resolution preset: {e:?}")))?;
+            let active = device
+                .active_format()
+                .ok_or_else(|| CamRtspError("camera has no active format".into()))?;
+            let dimensions = active.format_desc().dims();
+            let actual = (dimensions.width as u32, dimensions.height as u32);
+            let ranges = active.video_supported_frame_rate_ranges();
+            let duration = ranges
+                .iter()
+                .map(|range| {
+                    let requested = config.requested_fps as f64;
+                    if requested < range.min_frame_rate() {
+                        range.max_frame_duration()
+                    } else if requested > range.max_frame_rate() {
+                        range.min_frame_duration()
+                    } else {
+                        cm::Time::new(1, config.requested_fps as i32)
+                    }
+                })
+                .min_by(|a, b| {
+                    let distance = |time: &cm::Time| {
+                        (time.scale as f64 / time.value as f64 - config.requested_fps as f64).abs()
+                    };
+                    distance(a).total_cmp(&distance(b))
+                })
+                .ok_or_else(|| CamRtspError("camera has no supported frame rates".into()))?;
+            if duration.value <= 0 || duration.scale <= 0 || duration.value > u32::MAX as i64 {
+                return Err(CamRtspError(
+                    "camera returned an invalid frame duration".into(),
+                ));
+            }
+            {
+                let mut lock = device
+                    .config_lock()
+                    .map_err(|e| CamRtspError(format!("cannot configure camera: {e:?}")))?;
+                lock.set_active_video_min_frame_duration(duration)
+                    .map_err(|e| {
+                        CamRtspError(format!("camera rejected minimum frame duration: {e:?}"))
+                    })?;
+                lock.set_active_video_max_frame_duration(duration)
+                    .map_err(|e| {
+                        CamRtspError(format!("camera rejected maximum frame duration: {e:?}"))
+                    })?;
+            }
+            let fps = (duration.scale as f64 / duration.value as f64)
+                .round()
+                .max(1.0) as u32;
+            let bitrate = config.bitrate.resolve(actual.0, actual.1, fps);
+            let mut context = Box::new(EncoderContext {
+                sink,
+                default_duration_90khz: (90_000 * duration.value as u64 / duration.scale as u64)
+                    as u32,
+            });
+            let context_ptr: *mut EncoderContext = &mut *context;
+            let (mut encoder, hardware_encoder) = match new_encoder(
                 actual.0,
                 actual.1,
                 fps,
@@ -179,9 +282,6 @@ mod platform {
                     ) {
                         Ok(encoder) => (encoder, false),
                         Err(fallback_error) => {
-                            unsafe {
-                                drop(Box::from_raw(context_ptr));
-                            }
                             return Err(CamRtspError(format!(
                                 "hardware VideoToolbox setup failed ({error}); software fallback failed ({fallback_error})"
                             )));
@@ -189,28 +289,21 @@ mod platform {
                     }
                 }
             };
+            let force_keyframe = Arc::new(AtomicBool::new(false));
             let delegate = CaptureDelegate::with(CaptureDelegateInner {
                 encoder: encoder.clone(),
+                force_keyframe: force_keyframe.clone(),
             });
             let queue = dispatch::Queue::serial_with_ar_pool();
-            let mut output = VideoDataOutput::new();
-            output.set_always_discard_late_video_frames(true);
             output.set_sample_buf_delegate(Some(delegate.as_ref()), Some(&queue));
-            let mut session = Session::new();
-            session.configure(|session| {
-                if session.can_add_input(&input) {
-                    session.add_input(&input);
-                }
-                if session.can_add_output(&output) {
-                    session.add_output(&output);
-                }
-                let preset = preset_for(actual.0, actual.1);
-                if session.can_set_session_preset(preset) {
-                    let _ = session.set_session_preset(preset);
-                }
-            });
             session.start_running();
-            let context = unsafe { Box::from_raw(context_ptr) };
+            if !session.is_running() {
+                output.set_sample_buf_delegate::<CaptureDelegate>(None, None);
+                encoder.invalidate();
+                return Err(CamRtspError(
+                    "AVFoundation could not start the camera session".into(),
+                ));
+            }
             let descriptor = CameraDescriptor {
                 id: config.camera,
                 name: device.localized_name().to_string(),
@@ -218,12 +311,13 @@ mod platform {
                 formats: vec![CameraFormat {
                     width: actual.0,
                     height: actual.1,
-                    fps_num: fps,
-                    fps_den: 1,
-                    pixel_format: PixelFormat::Nv12,
+                    fps_num: duration.scale as u32,
+                    fps_den: duration.value as u32,
+                    pixel_format: PixelFormat::Unknown,
                 }],
             };
             self.running = Some(RunningPipeline {
+                force_keyframe,
                 session,
                 input,
                 output,
@@ -236,23 +330,31 @@ mod platform {
                 camera: descriptor,
                 width: actual.0,
                 height: actual.1,
-                fps_num: fps,
-                fps_den: 1,
-                pixel_format: PixelFormat::Nv12,
+                fps_num: duration.scale as u32,
+                fps_den: duration.value as u32,
+                pixel_format: PixelFormat::Unknown,
                 encoder_name: "VideoToolbox H.264".into(),
                 hardware_encoder,
             })
         }
 
         pub fn request_keyframe(&self) -> Result<()> {
-            Err(CamRtspError(
-                "VideoToolbox keyframe requests are not wired yet".into(),
-            ))
+            let running = self
+                .running
+                .as_ref()
+                .ok_or_else(|| CamRtspError("camera is not running".into()))?;
+            running.force_keyframe.store(true, Ordering::Relaxed);
+            Ok(())
         }
 
         pub fn stop(&mut self) -> Result<()> {
             if let Some(mut running) = self.running.take() {
                 running.session.stop_running();
+                running
+                    .output
+                    .set_sample_buf_delegate::<CaptureDelegate>(None, None);
+                extern "C-unwind" fn drain(_: *mut c_void) {}
+                running.queue.sync_f(std::ptr::null_mut(), drain);
                 let _ = running.encoder.complete_all();
                 running.encoder.invalidate();
             }
@@ -263,6 +365,50 @@ mod platform {
     impl Drop for PlatformPipeline {
         fn drop(&mut self) {
             let _ = self.stop();
+        }
+    }
+
+    fn ensure_camera_authorized() -> Result<()> {
+        use av::AuthorizationStatus;
+
+        let status = av::CaptureDevice::authorization_status_for_media_type(av::MediaType::video())
+            .map_err(|error| {
+                CamRtspError(format!("unable to read macOS camera permission: {error:?}"))
+            })?;
+        match status {
+            AuthorizationStatus::Authorized => Ok(()),
+            AuthorizationStatus::Denied => Err(CamRtspError(
+                "camera access is denied; enable camrtsp in System Settings > Privacy & Security > Camera"
+                    .into(),
+            )),
+            AuthorizationStatus::Restricted => Err(CamRtspError(
+                "camera access is restricted by macOS policy".into(),
+            )),
+            AuthorizationStatus::NotDetermined => {
+                let (sender, receiver) = mpsc::sync_channel(1);
+                let mut completion = blocks::SendBlock::new1(move |granted: bool| {
+                    let _ = sender.send(granted);
+                });
+                av::CaptureDevice::request_access_for_media_type_ch(
+                    av::MediaType::video(),
+                    &mut completion,
+                )
+                .map_err(|error| {
+                    CamRtspError(format!(
+                        "unable to request macOS camera permission: {error:?}"
+                    ))
+                })?;
+                match receiver.recv_timeout(Duration::from_secs(60)) {
+                    Ok(true) => Ok(()),
+                    Ok(false) => Err(CamRtspError(
+                        "camera access was denied; enable camrtsp in System Settings > Privacy & Security > Camera"
+                            .into(),
+                    )),
+                    Err(_) => Err(CamRtspError(
+                        "timed out waiting for the macOS camera permission response".into(),
+                    )),
+                }
+            }
         }
     }
 
@@ -373,6 +519,9 @@ mod platform {
                 return;
             }
             let pts = buffer.pts();
+            if pts.scale <= 0 {
+                return;
+            }
             let pts_90khz = ((pts.value as i128 * 90_000i128) / pts.scale as i128) as u32;
             context.sink.publish(EncodedAccessUnit {
                 nal_units,

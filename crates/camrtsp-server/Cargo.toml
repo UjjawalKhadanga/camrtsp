@@ -12,6 +12,7 @@ md5 = "0.7"
 rand.workspace = true
 sha2.workspace = true
 subtle.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true

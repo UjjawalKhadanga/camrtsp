@@ -1,0 +1,17 @@
+[package]
+name = "camrtsp-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base64.workspace = true
+camrtsp-core.workspace = true
+camrtsp-rtp.workspace = true
+md5 = "0.7"
+rand.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true

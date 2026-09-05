@@ -1,0 +1,11 @@
+[package]
+name = "camrtsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+camrtsp-core.workspace = true
+camrtsp-capture.workspace = true
+camrtsp-server.workspace = true
+serde_json.workspace = true

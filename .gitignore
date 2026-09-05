@@ -1,0 +1,33 @@
+# Rust
+/target/
+
+# macOS packaging output
+/dist/
+
+# Android / Gradle
+**/.gradle/
+**/.kotlin/
+**/build/
+local.properties
+*.apk
+*.aab
+captures/
+
+# Rust JNI libs (built by scripts/build-android.sh)
+apps/android/app/src/main/jniLibs/
+
+# Secrets
+.env
+.env.*
+*.keystore
+*.jks
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~

@@ -65,6 +65,11 @@ struct TransformEventCallbackState {
     alive: AtomicBool,
 }
 
+// Media Foundation delivers encoder events on MTA threads. The COM pointers are
+// MTA-safe; `Mutex`/`AtomicBool` serialize access from those callbacks.
+unsafe impl Send for TransformEventCallbackState {}
+unsafe impl Sync for TransformEventCallbackState {}
+
 impl TransformEventCallbackState {
     fn new(events: SyncSender<TransformEvent>) -> Arc<Self> {
         Arc::new(Self {
@@ -123,12 +128,12 @@ impl IMFAsyncCallback_Impl for TransformEventCallback_Impl {
                 } else {
                     None
                 };
-                if let Some(message) = message {
-                    if self.state.events.try_send(message).is_err() {
-                        let _ = self.state.events.try_send(TransformEvent::Failure(
-                            "asynchronous H.264 encoder event queue overflowed".into(),
-                        ));
-                    }
+                if let Some(message) = message
+                    && self.state.events.try_send(message).is_err()
+                {
+                    let _ = self.state.events.try_send(TransformEvent::Failure(
+                        "asynchronous H.264 encoder event queue overflowed".into(),
+                    ));
                 }
             }
             Err(error) => {
@@ -157,6 +162,11 @@ struct SourceReaderCallbackState {
     discontinuity: AtomicBool,
     failure: Mutex<Option<String>>,
 }
+
+// Source Reader callbacks run on Media Foundation MTA threads. COM pointers are
+// MTA-safe; `Mutex`/`AtomicBool` serialize access from those callbacks.
+unsafe impl Send for SourceReaderCallbackState {}
+unsafe impl Sync for SourceReaderCallbackState {}
 
 impl SourceReaderCallbackState {
     fn new(samples: SyncSender<CapturedSample>) -> Arc<Self> {
@@ -725,10 +735,10 @@ fn publish_encoded_sample(
     sample: IMFSample,
     sink: &AccessUnitSink,
 ) -> Result<()> {
-    if let Ok(media_type) = unsafe { transform.GetOutputCurrentType(0) } {
-        if let Ok(codec) = codec_config_from_media_type(&media_type) {
-            sink.set_codec_config(codec);
-        }
+    if let Ok(media_type) = unsafe { transform.GetOutputCurrentType(0) }
+        && let Ok(codec) = codec_config_from_media_type(&media_type)
+    {
+        sink.set_codec_config(codec);
     }
     let bytes = sample_bytes(&sample)?;
     let nal_units = split_h264(&bytes);
@@ -875,10 +885,10 @@ impl SynchronousMftEncoder {
     }
 
     fn publish_sample(&self, sample: IMFSample, sink: &AccessUnitSink) -> Result<()> {
-        if let Ok(media_type) = unsafe { self.transform.GetOutputCurrentType(0) } {
-            if let Ok(codec) = codec_config_from_media_type(&media_type) {
-                sink.set_codec_config(codec);
-            }
+        if let Ok(media_type) = unsafe { self.transform.GetOutputCurrentType(0) }
+            && let Ok(codec) = codec_config_from_media_type(&media_type)
+        {
+            sink.set_codec_config(codec);
         }
         let bytes = sample_bytes(&sample)?;
         let nal_units = split_h264(&bytes);

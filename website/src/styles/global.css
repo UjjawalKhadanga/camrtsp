@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink: #0c0b0a;
+  --color-ink-2: #161412;
+  --color-ink-3: #1f1c19;
+  --color-paper: #f3ebe1;
+  --color-paper-dim: #c9bfb3;
+  --color-mute: #8a8176;
+  --color-line: rgba(243, 235, 225, 0.1);
+  --color-copper: #e08a4f;
+  --color-copper-dim: #b56a38;
+  --color-live: #ff5a4a;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+a:any-link {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-feature-settings: "ss01" on, "cv11" on;
+}
+
+.grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.viewfinder-grid {
+  background-image:
+    linear-gradient(to right, rgba(243, 235, 225, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(243, 235, 225, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    rgba(0, 0, 0, 0.18) 3px
+  );
+  opacity: 0.35;
+}
+
+.rec-dot {
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 90, 74, 0.55);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 8px rgba(255, 90, 74, 0);
+  }
+}
+
+.corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: var(--color-paper);
+  opacity: 0.55;
+}
+
+.corner-tl {
+  top: 12px;
+  left: 12px;
+  border-top: 1.5px solid;
+  border-left: 1.5px solid;
+}
+
+.corner-tr {
+  top: 12px;
+  right: 12px;
+  border-top: 1.5px solid;
+  border-right: 1.5px solid;
+}
+
+.corner-bl {
+  bottom: 12px;
+  left: 12px;
+  border-bottom: 1.5px solid;
+  border-left: 1.5px solid;
+}
+
+.corner-br {
+  bottom: 12px;
+  right: 12px;
+  border-bottom: 1.5px solid;
+  border-right: 1.5px solid;
+}

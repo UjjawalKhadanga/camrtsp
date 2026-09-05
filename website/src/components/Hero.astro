@@ -1,0 +1,77 @@
+---
+const url = "rtsp://127.0.0.1:8554/camera";
+---
+
+<section class="relative overflow-hidden border-b border-line">
+  <div class="pointer-events-none absolute inset-0 viewfinder-grid opacity-60"></div>
+  <div class="pointer-events-none absolute -top-32 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-copper/10 blur-3xl"></div>
+  <div class="relative mx-auto grid max-w-6xl gap-12 px-5 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-24">
+    <div>
+      <p class="mb-5 inline-flex items-center gap-2 rounded-full border border-line bg-ink-2 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-paper-dim">
+        <span class="rec-dot inline-block h-1.5 w-1.5 rounded-full bg-live"></span>
+        v0.1.0-beta.1 · MIT OR Apache-2.0
+      </p>
+      <h1 class="max-w-xl text-[2.6rem] font-medium leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.4rem]">
+        Turn a laptop or phone camera into a live RTSP source.
+      </h1>
+      <p class="mt-6 max-w-lg text-lg leading-relaxed text-paper-dim">
+        Native capture. Hardware H.264. An RTSP server in the same process.
+        No FFmpeg. No GStreamer. No sidecar media daemon.
+      </p>
+      <div class="mt-8 flex flex-wrap items-center gap-3">
+        <a
+          href="#start"
+          class="rounded-full bg-paper px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-paper-dim"
+        >
+          Quick start
+        </a>
+        <a
+          href="https://github.com/UjjawalKhadanga/camrtsp"
+          class="rounded-full border border-line px-5 py-2.5 text-sm text-paper transition hover:border-paper/30 hover:bg-ink-2"
+        >
+          View source
+        </a>
+      </div>
+      <div class="mt-8 flex max-w-xl items-center gap-2 rounded-xl border border-line bg-ink-2 p-2 pl-4">
+        <code class="min-w-0 flex-1 truncate font-mono text-sm text-copper sm:text-[15px]">{url}</code>
+        <button
+          type="button"
+          data-copy={url}
+          class="shrink-0 rounded-lg bg-ink-3 px-3 py-2 font-mono text-xs text-paper-dim transition hover:text-paper"
+        >
+          <span data-copy-label>Copy</span>
+        </button>
+      </div>
+      <p class="mt-3 font-mono text-xs text-mute">macOS 12+ · Windows 10/11 x64 · Android API 26+</p>
+    </div>
+
+    <div class="relative">
+      <div class="scanlines relative overflow-hidden rounded-2xl border border-line bg-ink-2 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)]">
+        <span class="corner corner-tl"></span>
+        <span class="corner corner-tr"></span>
+        <span class="corner corner-bl"></span>
+        <span class="corner corner-br"></span>
+        <div class="flex items-center justify-between border-b border-line px-4 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-mute">
+          <span class="flex items-center gap-2 text-live">
+            <span class="rec-dot h-2 w-2 rounded-full bg-live"></span>
+            Rec
+          </span>
+          <span>1280×720 · 30 FPS · H.264</span>
+        </div>
+        <div class="space-y-2 px-5 py-6 font-mono text-[13px] leading-relaxed text-paper-dim">
+          <p class="text-mute">$ camrtsp --camera 0</p>
+          <p>Camera: FaceTime HD Camera</p>
+          <p class="text-copper">Streaming: {url}</p>
+          <p>Resolution: 1280x720 @ 30 FPS</p>
+          <p>Codec: H.264</p>
+          <p class="pt-3 text-mute">Viewers wait at most one GOP.</p>
+        </div>
+        <div class="grid grid-cols-3 border-t border-line font-mono text-[11px] text-mute">
+          <div class="border-r border-line px-4 py-3">AVFoundation</div>
+          <div class="border-r border-line px-4 py-3">VideoToolbox</div>
+          <div class="px-4 py-3">:8554</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -14,6 +14,7 @@
 Native capture. Hardware H.264. An RTSP server in the same process.  
 No FFmpeg. No GStreamer. No sidecar media daemon.
 
+[![Website](https://img.shields.io/badge/website-ujjawalkhadanga.github.io%2Fcamrtsp-1c94b5)](https://ujjawalkhadanga.github.io/camrtsp/)
 [![CI](https://github.com/UjjawalKhadanga/camrtsp/actions/workflows/ci.yml/badge.svg)](https://github.com/UjjawalKhadanga/camrtsp/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/release-v0.1.0--beta.1-blueviolet)](https://github.com/UjjawalKhadanga/camrtsp)
 [![Rust](https://img.shields.io/badge/rust-1.91-orange?logo=rust)](https://www.rust-lang.org)
@@ -226,6 +227,18 @@ This is **v0.1.0-beta.1**. Crate version is `0.1.0`.
 - Linux, iOS, and RTSPS are not in this release
 
 See [CHANGELOG.md](CHANGELOG.md).
+
+## Website
+
+Live at [ujjawalkhadanga.github.io/camrtsp](https://ujjawalkhadanga.github.io/camrtsp/). Source is in [`website/`](website/) (Astro + Tailwind).
+
+```bash
+cd website
+npm install
+npm run dev
+```
+
+GitHub Pages can publish `website/dist` via [`.github/workflows/website.yml`](.github/workflows/website.yml) after Pages is enabled on the repo.
 
 ## License
 

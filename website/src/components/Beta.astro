@@ -1,0 +1,27 @@
+---
+const limits = [
+  "macOS request_keyframe is not wired; a late joiner waits up to the GOP",
+  "Android nativeGetStats always reports viewers:0",
+  "Linux, iOS, and RTSPS are not in this release",
+];
+---
+
+<section id="beta" class="border-b border-line">
+  <div class="mx-auto max-w-6xl px-5 py-20">
+    <p class="font-mono text-[11px] uppercase tracking-[0.18em] text-copper">Beta notes</p>
+    <h2 class="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">v0.1.0-beta.1. Crate version is 0.1.0.</h2>
+    <ul class="mt-8 max-w-2xl space-y-3 text-paper-dim">
+      {limits.map((item) => (
+        <li class="flex gap-3">
+          <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-copper"></span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+    <p class="mt-8 text-sm text-mute">
+      See the
+      <a class="text-paper underline decoration-line underline-offset-4 hover:decoration-copper" href="https://github.com/UjjawalKhadanga/camrtsp/blob/master/CHANGELOG.md">changelog</a>
+      for the supported surface.
+    </p>
+  </div>
+</section>

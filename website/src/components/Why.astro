@@ -1,0 +1,52 @@
+---
+const pains = [
+  {
+    title: "No FFmpeg pipeline",
+    body: "IP cameras already speak RTSP. A webcam does not. The usual fix is piping frames through FFmpeg or GStreamer into a separate media server.",
+  },
+  {
+    title: "No extra hardware",
+    body: "Buying a dedicated IP camera for a job a laptop or phone you already own can do is the expensive way around a missing URL.",
+  },
+  {
+    title: "No helper process",
+    body: "camrtsp opens the OS camera API, encodes with the OS hardware encoder, and serves RTSP from the same process.",
+  },
+];
+---
+
+<section id="why" class="border-b border-line">
+  <div class="mx-auto max-w-6xl px-5 py-20">
+    <p class="font-mono text-[11px] uppercase tracking-[0.18em] text-copper">Why camrtsp</p>
+    <h2 class="mt-3 max-w-2xl text-3xl font-medium tracking-tight sm:text-4xl">
+      VLC, OBS, NVRs, and Home Assistant already know how to pull an RTSP URL.
+    </h2>
+    <p class="mt-4 max-w-2xl text-paper-dim">
+      A laptop webcam or a phone camera does not. camrtsp is the missing publisher:
+      it gives those viewers a URL they already understand.
+    </p>
+    <div class="mt-12 grid gap-4 md:grid-cols-3">
+      {pains.map((item) => (
+        <article class="rounded-2xl border border-line bg-ink-2 p-6">
+          <h3 class="text-lg font-medium">{item.title}</h3>
+          <p class="mt-3 text-sm leading-relaxed text-paper-dim">{item.body}</p>
+        </article>
+      ))}
+    </div>
+
+    <div class="mt-10 overflow-x-auto rounded-2xl border border-line">
+      <div class="min-w-[40rem]">
+        <div class="grid grid-cols-3 border-b border-line bg-ink-2 px-5 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-mute">
+          <span>You have</span>
+          <span>You need</span>
+          <span>camrtsp gives you</span>
+        </div>
+        <div class="grid grid-cols-3 divide-x divide-line text-sm">
+          <p class="px-5 py-5 text-paper-dim">A Mac, Windows PC, or Android phone with a camera</p>
+          <p class="px-5 py-5 text-paper-dim">A URL other software can subscribe to</p>
+          <p class="px-5 py-5 font-mono text-copper">rtsp://host:8554/camera</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

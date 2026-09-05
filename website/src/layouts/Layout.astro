@@ -1,0 +1,95 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "camrtsp — camera to RTSP, natively",
+  description = "Turn a laptop or phone camera into a live RTSP source. Native capture, hardware H.264, an RTSP server in the same process. No FFmpeg. No GStreamer.",
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0c0b0a" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={`${import.meta.env.BASE_URL}favicon.svg`} type="image/svg+xml" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap"
+      rel="stylesheet"
+    />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen bg-ink font-sans text-paper antialiased">
+    <div class="grain" aria-hidden="true"></div>
+    <slot />
+    <script>
+      function copyText(value: string, button: HTMLButtonElement) {
+        const label = button.querySelector("[data-copy-label]");
+        const done = () => {
+          if (!label) return;
+          const previous = label.textContent;
+          label.textContent = "Copied";
+          window.setTimeout(() => {
+            label.textContent = previous;
+          }, 1400);
+        };
+        navigator.clipboard.writeText(value).then(done).catch(() => {
+          const field = document.createElement("textarea");
+          field.value = value;
+          document.body.appendChild(field);
+          field.select();
+          document.execCommand("copy");
+          field.remove();
+          done();
+        });
+      }
+
+      document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const value = button.getAttribute("data-copy");
+          if (value) copyText(value, button);
+        });
+      });
+
+    const copyBtn = document.querySelector<HTMLButtonElement>("#start-copy");
+    const tabs = document.querySelectorAll<HTMLButtonElement>("[data-tab]");
+    const panels = document.querySelectorAll<HTMLElement>("[data-panel]");
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const id = tab.getAttribute("data-tab");
+        tabs.forEach((item) => {
+          const on = item === tab;
+          item.setAttribute("aria-selected", String(on));
+          item.classList.toggle("bg-paper", on);
+          item.classList.toggle("text-ink", on);
+          item.classList.toggle("text-mute", !on);
+        });
+        panels.forEach((panel) => {
+          const match = panel.getAttribute("data-panel") === id;
+          panel.hidden = !match;
+          if (match && copyBtn) {
+            const snippet = panel.getAttribute("data-snippet");
+            if (snippet) copyBtn.setAttribute("data-copy", snippet);
+          }
+        });
+      });
+    });
+    </script>
+  </body>
+</html>

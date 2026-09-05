@@ -26,6 +26,11 @@ apps/android/app/src/main/jniLibs/
 .DS_Store
 Thumbs.db
 
+# Website
+website/node_modules/
+website/dist/
+website/.astro/
+
 # Editors
 .idea/
 .vscode/

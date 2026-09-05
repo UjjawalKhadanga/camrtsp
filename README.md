@@ -1,22 +1,17 @@
 <div align="center">
 
-```
- ██████╗ █████╗ ███╗   ███╗██████╗ ████████╗███████╗██████╗
-██╔════╝██╔══██╗████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗
-██║     ███████║██╔████╔██║██████╔╝   ██║   ███████╗██████╔╝
-██║     ██╔══██║██║╚██╔╝██║██╔══██╗   ██║   ╚════██║██╔═══╝
-╚██████╗██║  ██║██║ ╚═╝ ██║██║  ██║   ██║   ███████║██║
- ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝
-```
+<img src="website/public/brand/banner.svg" alt="camrtsp — Keep the camera. Open the signal. Native camera to H.264 to RTSP." width="100%" />
 
-**Turn a laptop or phone camera into a live RTSP source.**
+### Keep the camera. Open the signal.
+
+Turn your Mac, Windows PC, or Android phone into a native RTSP source.
 
 Native capture. Hardware H.264. An RTSP server in the same process.  
 No FFmpeg. No GStreamer. No sidecar media daemon.
 
-[![Website](https://img.shields.io/badge/website-ujjawalkhadanga.github.io%2Fcamrtsp-1c94b5)](https://ujjawalkhadanga.github.io/camrtsp/)
+[![Website](https://img.shields.io/badge/website-ujjawalkhadanga.github.io%2Fcamrtsp-b7ff5b)](https://ujjawalkhadanga.github.io/camrtsp/)
 [![CI](https://github.com/UjjawalKhadanga/camrtsp/actions/workflows/ci.yml/badge.svg)](https://github.com/UjjawalKhadanga/camrtsp/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0--beta.1-blueviolet)](https://github.com/UjjawalKhadanga/camrtsp)
+[![Release](https://img.shields.io/badge/release-v0.1.0--beta.1-91be65)](https://github.com/UjjawalKhadanga/camrtsp)
 [![Rust](https://img.shields.io/badge/rust-1.91-orange?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green)](LICENSE-MIT)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Android-informational)](#the-suite)
@@ -230,7 +225,9 @@ See [CHANGELOG.md](CHANGELOG.md).
 
 ## Website
 
-Live at [ujjawalkhadanga.github.io/camrtsp](https://ujjawalkhadanga.github.io/camrtsp/). Source is in [`website/`](website/) (Astro + Tailwind).
+Live at [ujjawalkhadanga.github.io/camrtsp](https://ujjawalkhadanga.github.io/camrtsp/). Source is in [`website/`](website/) (Astro + Tailwind). Explore the interactive signal playground, switch source devices and transports, and get platform-specific setup commands. The playground is a simulation; it does not access your camera.
+
+The [brand assets](website/public/brand/) include the vector logo, repository banner, and social preview. The Android control panel uses the same charcoal and electric mint palette.
 
 ```bash
 cd website

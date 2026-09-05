@@ -1,5 +1,7 @@
 package com.camrtsp
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.content.Context
 import android.graphics.ImageFormat
 import android.hardware.camera2.*
@@ -31,6 +33,9 @@ class CameraEncoder(
     private var session: CameraCaptureSession? = null
 
     fun start() {
+        if (context.checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            throw SecurityException("Camera permission is required to stream")
+        }
         val manager = context.getSystemService(CameraManager::class.java)
         val id = selectCamera(manager)
         val choice = chooseSizeAndFps(manager.getCameraCharacteristics(id))

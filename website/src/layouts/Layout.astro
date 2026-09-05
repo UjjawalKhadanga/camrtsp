@@ -1,95 +1,146 @@
 ---
 import "../styles/global.css";
-
-interface Props {
-  title?: string;
-  description?: string;
-}
-
-const {
-  title = "camrtsp — camera to RTSP, natively",
-  description = "Turn a laptop or phone camera into a live RTSP source. Native capture, hardware H.264, an RTSP server in the same process. No FFmpeg. No GStreamer.",
-} = Astro.props;
-
+const title = "camrtsp — Keep the camera. Open the signal.";
+const description =
+  "Turn your Mac, Windows PC, or Android camera into a native RTSP source. Hardware H.264, a shared Rust core, and one open signal.";
+const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content={description} />
-    <meta name="theme-color" content="#0c0b0a" />
-    <link rel="canonical" href={canonical} />
-    <link rel="icon" href={`${import.meta.env.BASE_URL}favicon.svg`} type="image/svg+xml" />
-    <meta property="og:title" content={title} />
-    <meta property="og:description" content={description} />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap"
+  <head
+    ><meta charset="utf-8" /><meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    /><meta name="description" content={description} /><meta
+      name="theme-color"
+      content="#101310"
+    /><link rel="canonical" href={canonical} /><link
+      rel="icon"
+      href={`${base}favicon.svg`}
+      type="image/svg+xml"
+    /><meta property="og:title" content={title} /><meta
+      property="og:description"
+      content={description}
+    /><meta property="og:type" content="website" /><meta
+      property="og:url"
+      content={canonical}
+    /><meta
+      property="og:image"
+      content={new URL(`${base}brand/social.png`, Astro.site)}
+    /><meta name="twitter:card" content="summary_large_image" /><link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    /><link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    /><link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
-    />
-    <title>{title}</title>
-  </head>
-  <body class="min-h-screen bg-ink font-sans text-paper antialiased">
-    <div class="grain" aria-hidden="true"></div>
-    <slot />
-    <script>
-      function copyText(value: string, button: HTMLButtonElement) {
-        const label = button.querySelector("[data-copy-label]");
-        const done = () => {
-          if (!label) return;
-          const previous = label.textContent;
-          label.textContent = "Copied";
-          window.setTimeout(() => {
-            label.textContent = previous;
-          }, 1400);
-        };
-        navigator.clipboard.writeText(value).then(done).catch(() => {
-          const field = document.createElement("textarea");
-          field.value = value;
-          document.body.appendChild(field);
-          field.select();
-          document.execCommand("copy");
-          field.remove();
-          done();
-        });
-      }
-
-      document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
-        button.addEventListener("click", () => {
-          const value = button.getAttribute("data-copy");
-          if (value) copyText(value, button);
-        });
+    /><title>{title}</title></head
+  >
+  <body
+    ><slot /><script>
+      const motionButton =
+        document.querySelector<HTMLButtonElement>("#toggle-motion")!;
+      motionButton.addEventListener("click", () => {
+        const paused =
+          document.documentElement.classList.toggle("motion-paused");
+        motionButton.setAttribute("aria-pressed", String(paused));
+        motionButton.textContent = paused ? "Resume motion" : "Pause motion";
       });
 
-    const copyBtn = document.querySelector<HTMLButtonElement>("#start-copy");
-    const tabs = document.querySelectorAll<HTMLButtonElement>("[data-tab]");
-    const panels = document.querySelectorAll<HTMLElement>("[data-panel]");
-    tabs.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const id = tab.getAttribute("data-tab");
+      document
+        .querySelectorAll<HTMLButtonElement>("[data-copy]")
+        .forEach((button) => {
+          const label = button.querySelector("[data-copy-label]");
+          const original = label?.textContent ?? "Copy";
+          let timer: number;
+          button.addEventListener("click", async () => {
+            clearTimeout(timer);
+            try {
+              await navigator.clipboard.writeText(button.dataset.copy ?? "");
+              if (label) label.textContent = "Copied ✓";
+            } catch {
+              if (label) label.textContent = "Select text to copy";
+            }
+            timer = window.setTimeout(() => {
+              if (label) label.textContent = original;
+            }, 2200);
+          });
+          label?.setAttribute("aria-live", "polite");
+        });
+      const tabs = [
+        ...document.querySelectorAll<HTMLButtonElement>("[data-tab]"),
+      ];
+      function activate(tab: HTMLButtonElement) {
         tabs.forEach((item) => {
-          const on = item === tab;
-          item.setAttribute("aria-selected", String(on));
-          item.classList.toggle("bg-paper", on);
-          item.classList.toggle("text-ink", on);
-          item.classList.toggle("text-mute", !on);
+          item.setAttribute("aria-selected", String(item === tab));
+          item.tabIndex = item === tab ? 0 : -1;
         });
-        panels.forEach((panel) => {
-          const match = panel.getAttribute("data-panel") === id;
-          panel.hidden = !match;
-          if (match && copyBtn) {
-            const snippet = panel.getAttribute("data-snippet");
-            if (snippet) copyBtn.setAttribute("data-copy", snippet);
-          }
+        document
+          .querySelectorAll<HTMLElement>("[data-panel]")
+          .forEach((panel) => {
+            panel.hidden = panel.dataset.panel !== tab.dataset.tab;
+            if (!panel.hidden)
+              document.querySelector<HTMLButtonElement>(
+                "#start-copy",
+              )!.dataset.copy = panel.dataset.snippet;
+          });
+      }
+      tabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => activate(tab));
+        tab.addEventListener("keydown", (event) => {
+          let target = index;
+          if (event.key === "ArrowRight") target = (index + 1) % tabs.length;
+          else if (event.key === "ArrowLeft")
+            target = (index + tabs.length - 1) % tabs.length;
+          else if (event.key === "Home") target = 0;
+          else if (event.key === "End") target = tabs.length - 1;
+          else return;
+          event.preventDefault();
+          activate(tabs[target]);
+          tabs[target].focus();
         });
       });
-    });
-    </script>
-  </body>
+      const sources =
+        document.querySelectorAll<HTMLButtonElement>("[data-source]");
+      sources.forEach((button) =>
+        button.addEventListener("click", () => {
+          sources.forEach((source) =>
+            source.setAttribute("aria-pressed", String(source === button)),
+          );
+          document.querySelector("#demo-source")!.textContent =
+            button.dataset.source!;
+        }),
+      );
+      document
+        .querySelector<HTMLSelectElement>("#transport")
+        ?.addEventListener("change", (event) => {
+          const value = (event.target as HTMLSelectElement).value;
+          document.querySelector("#transport-stat")!.replaceChildren(
+            document.createTextNode(value),
+            Object.assign(document.createElement("small"), {
+              textContent: "TRANSPORT",
+            }),
+          );
+        });
+      const toggle =
+        document.querySelector<HTMLButtonElement>("#toggle-stream")!;
+      toggle.addEventListener("click", () => {
+        const demo = document.querySelector<HTMLElement>(".playground")!;
+        const running = demo.dataset.running !== "true";
+        demo.dataset.running = String(running);
+        toggle.setAttribute("aria-pressed", String(running));
+        toggle.textContent = running
+          ? "Pause simulation  Ⅱ"
+          : "Resume simulation  ▷";
+        document.querySelector("#demo-status")!.textContent = running
+          ? "● SIMULATED LIVE"
+          : "Ⅱ SIMULATION PAUSED";
+      });
+    </script></body
+  >
 </html>

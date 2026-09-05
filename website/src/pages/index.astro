@@ -1,30 +1,340 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import Nav from "../components/Nav.astro";
-import Hero from "../components/Hero.astro";
-import Why from "../components/Why.astro";
-import Pipeline from "../components/Pipeline.astro";
-import Suite from "../components/Suite.astro";
-import Features from "../components/Features.astro";
-import Start from "../components/Start.astro";
-import Play from "../components/Play.astro";
-import Beta from "../components/Beta.astro";
-import Footer from "../components/Footer.astro";
+const repo = "https://github.com/UjjawalKhadanga/camrtsp";
+const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
+const platforms = [
+  {
+    id: "macos",
+    label: "macOS",
+    note: "macOS 12+ · Rust 1.91+ · Allow camera access when prompted.",
+    code: "git clone https://github.com/UjjawalKhadanga/camrtsp.git\ncd camrtsp\ncargo build --release -p camrtsp\n./target/release/camrtsp devices\n./target/release/camrtsp --camera 0",
+  },
+  {
+    id: "windows",
+    label: "Windows",
+    note: "Windows 10/11 x64 · Rust MSVC toolchain. Live camera playback still requires local verification.",
+    code: "git clone https://github.com/UjjawalKhadanga/camrtsp.git\ncd camrtsp\ncargo test --workspace\ncargo run -p camrtsp -- devices --json\ncargo run -p camrtsp -- --camera 0 --transport tcp",
+  },
+  {
+    id: "android",
+    label: "Android",
+    note: "Android 8+ · Requires Android SDK, NDK 27.1.12297006 and cargo-ndk. Install the debug APK and grant camera access.",
+    code: "git clone https://github.com/UjjawalKhadanga/camrtsp.git\ncd camrtsp\nscripts/build-android.sh\ncd apps/android\n./gradlew assembleDebug",
+  },
+];
 ---
 
 <Layout>
-  <div id="top">
-    <Nav />
-    <main>
-      <Hero />
-      <Why />
-      <Pipeline />
-      <Suite />
-      <Features />
-      <Start />
-      <Play />
-      <Beta />
-    </main>
-    <Footer />
-  </div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="nav wrap">
+    <a class="brand" href="#" aria-label="camrtsp home"
+      ><img
+        src={`${base}brand/mark.svg`}
+        width="36"
+        height="36"
+        alt=""
+      />camrtsp<span class="beta-pill">BETA</span></a
+    >
+    <nav aria-label="Main navigation">
+      <a href="#how">How it works</a><a href="#playground">Playground</a><a
+        href="#start">Quick start</a
+      >
+    </nav>
+    <a class="nav-github" href={repo}
+      >GitHub <span aria-hidden="true">↗</span></a
+    >
+  </header>
+  <main id="main">
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">
+          <span class="status-dot"></span> YOUR CAMERA. YOUR NETWORK.
+        </p>
+        <h1>
+          Good cameras.<br />Deserve an<br /><span class="accent"
+            >open signal.</span
+          >
+        </h1>
+        <p class="hero-description">
+          Turn the camera you already own into a live RTSP source. Native
+          capture. Hardware H.264. One beautifully small process.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="#start"
+            >Get your camera online <span>↗</span></a
+          ><a class="text-link" href="#playground"
+            >Explore the signal <span>↓</span></a
+          >
+        </div>
+        <div class="platform-line">
+          <span>Built for</span> macOS <i>/</i> Windows <i>/</i> Android
+        </div>
+      </div>
+      <div
+        class="signal-art"
+        aria-label="Animated illustration of a camera lens broadcasting a signal"
+      >
+        <div class="art-top">
+          <span><b class="status-dot"></b> SIGNAL LAB / 001</span><span
+            >H.264 ↗ RTSP</span
+          >
+        </div>
+        <div class="orbital orbit-one"></div><div class="orbital orbit-two">
+        </div><div class="orbital orbit-three"></div>
+        <div class="cross cross-one">+</div><div class="cross cross-two">+</div>
+        <div class="lens">
+          <div class="lens-rim">
+            <div class="lens-glass">
+              <div class="aperture"></div><span class="lens-reflection"></span>
+            </div>
+          </div><span class="lens-label">NATIVE OPTICS / OPEN PROTOCOL</span>
+        </div>
+        <span class="floating-tag tag-one">CAMERA IN <span>↘</span></span><span
+          class="floating-tag tag-two"><b class="status-dot"></b> RTSP OUT</span
+        >
+        <div class="art-bottom">
+          <span>ONE SOURCE. MANY POSSIBILITIES.</span><span class="wave"
+            >▂ ▅ ▃ █ ▅ ▂ ▆ ▃</span
+          >
+        </div>
+      </div>
+    </section>
+    <div class="compatibility">
+      <div class="wrap">
+        <span>ONE URL. RIGHT AT HOME IN</span><b>VLC</b><b>OBS Studio</b><b
+          >ffplay</b
+        ><b>Home Assistant</b><b>Your NVR</b>
+      </div>
+    </div>
+    <section id="how" class="section wrap">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">01 / LESS BETWEEN YOU AND LIVE</p><h2>
+            A direct line.<br />From lens to LAN.
+          </h2>
+        </div><p>
+          Skip the multimedia stack. camrtsp brings capture, encoding, and
+          streaming together in a single native process.
+        </p>
+      </div>
+      <div class="pipeline">
+        <article>
+          <span class="step">01 <span>↗</span></span><div class="stage-icon">
+            ◎
+          </div><h3>Capture natively.</h3><p>
+            Your camera, through the operating system. AVFoundation, Media
+            Foundation, or Camera2.
+          </p><span class="chip">CAMERA → RAW FRAMES</span>
+        </article>
+        <article>
+          <span class="step">02 <span>↗</span></span><div class="stage-icon">
+            ▥
+          </div><h3>Let hardware handle it.</h3><p>
+            OS H.264 encoding with VideoToolbox, Media Foundation, or
+            MediaCodec.
+          </p><span class="chip">RAW FRAMES → H.264</span>
+        </article>
+        <article>
+          <span class="step">03 <span>↗</span></span><div class="stage-icon">
+            ⌁
+          </div><h3>Give it an address.</h3><p>
+            An embedded RTSP server. Multiple viewers. TCP or UDP. Open it in
+            the tools you love.
+          </p><span class="chip">H.264 → YOUR NETWORK</span>
+        </article>
+      </div>
+    </section>
+    <section id="playground" class="section playground-section">
+      <div class="wrap">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">02 / A LITTLE SIGNAL PLAY</p><h2>
+              Meet your next<br />camera setup.
+            </h2>
+          </div><p>
+            Change the source. Switch the transport. Follow the signal.<br
+            /><span class="muted"
+              >Interactive simulation — no camera access.</span
+            >
+          </p>
+        </div>
+        <div class="playground" data-running="true">
+          <aside class="controls">
+            <p class="eyebrow">SOURCE DEVICE</p><div
+              class="source-buttons"
+              role="group"
+              aria-label="Demo source"
+            >
+              <button data-source="MacBook camera" aria-pressed="true"
+                ><span>▱</span> MacBook <small>AVFoundation</small></button
+              ><button data-source="Windows webcam" aria-pressed="false"
+                ><span>⊞</span> Windows PC <small>Media Foundation</small
+                ></button
+              ><button data-source="Android camera" aria-pressed="false"
+                ><span>▯</span> Android phone <small>Camera2</small></button
+              >
+            </div><label class="eyebrow" for="transport">TRANSPORT</label
+            ><select id="transport"
+              ><option value="TCP">TCP · Interleaved</option><option value="UDP"
+                >UDP · RTP / RTCP</option
+              ></select
+            ><button
+              class="button primary"
+              id="toggle-stream"
+              aria-pressed="true">Pause simulation <span>Ⅱ</span></button
+            >
+          </aside>
+          <div class="demo-display">
+            <div class="demo-top">
+              <span id="demo-source">MacBook camera</span><span id="demo-status"
+                ><b class="status-dot"></b> SIMULATED LIVE</span
+              >
+            </div><div class="demo-scene" aria-hidden="true">
+              <div class="terrain terrain-back"></div><div
+                class="terrain terrain-front"
+              >
+              </div><div class="demo-sun"></div><div class="scan-beam">
+              </div><div class="focus-frame">
+                <span>CAM / 01</span><b>+</b>
+              </div><span class="scene-caption">THE WORLD IS YOUR SOURCE.</span>
+            </div><div class="demo-stats">
+              <span>1280 × 720 <small>RESOLUTION</small></span><span
+                >30 fps <small>CONFIGURED RATE</small></span
+              ><span id="transport-stat">TCP <small>TRANSPORT</small></span
+              ><span>H.264 <small>CODEC</small></span>
+            </div>
+          </div>
+          <div class="demo-url">
+            <span class="status-dot"></span><code
+              >rtsp://&lt;device-lan-ip&gt;:8554/camera</code
+            ><button
+              data-copy="rtsp://<device-lan-ip>:8554/camera"
+              aria-label="Copy example RTSP URL"
+              ><span data-copy-label>Copy URL ↗</span></button
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="section wrap" id="product">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">03 / SMALL FOOTPRINT. OPEN POSSIBILITIES.</p><h2>
+            Less setup.<br />More signal.
+          </h2>
+        </div><p>
+          A webcam for your home lab. A phone for your workbench. A native
+          source for your existing video workflow.
+        </p>
+      </div><div class="feature-grid">
+        <article class="feature-featured">
+          <span class="eyebrow">NATIVE BY DESIGN</span><h3>
+            Your camera.<br />No entourage.
+          </h3><p>
+            No FFmpeg. No GStreamer. No sidecar media daemon. Just the OS APIs
+            and a shared Rust core.
+          </p><div class="process-art" aria-hidden="true">
+            <span>◎</span><i></i><span>RUST</span><i></i><span>↗</span>
+          </div>
+        </article><article>
+          <span class="feature-number">01 /</span><h3>
+            One stream. More viewers.
+          </h3><p>
+            Connect your viewers to the same source. Late joiners wait at most
+            one GOP, 2 seconds by default.
+          </p>
+        </article><article>
+          <span class="feature-number">02 /</span><h3>
+            Access, on your terms.
+          </h3><p>
+            Optional Basic and Digest authentication. Choose TCP, UDP, or offer
+            both transports.
+          </p>
+        </article><article>
+          <span class="feature-number">03 /</span><h3>
+            Put that phone to work.
+          </h3><p>
+            Android streaming runs in a camera foreground service with a wake
+            lock.
+          </p>
+        </article><article>
+          <span class="feature-number">04 /</span><h3>
+            Open all the way down.
+          </h3><p>
+            Rust core. Native platform APIs. MIT or Apache-2.0. Read it, build
+            it, make it yours.
+          </p>
+        </article>
+      </div>
+    </section>
+    <section class="section wrap start-section" id="start">
+      <div>
+        <p class="eyebrow">04 / LET’S GET YOU CONNECTED</p><h2>
+          Your next stream<br />starts here<span class="accent">.</span>
+        </h2><p>
+          Build from source, pick a camera, and open the URL in an RTSP player.
+        </p><a class="text-link" href={`${repo}#quick-start`}
+          >Read the full setup guide ↗</a
+        >
+      </div><div class="terminal">
+        <div class="terminal-tabs" role="tablist" aria-label="Setup platform">
+          {
+            platforms.map((p, i) => (
+              <button
+                id={`tab-${p.id}`}
+                role="tab"
+                aria-controls={`panel-${p.id}`}
+                aria-selected={i === 0}
+                tabindex={i === 0 ? 0 : -1}
+                data-tab={p.id}
+              >
+                {p.label}
+              </button>
+            ))
+          }<button id="start-copy" data-copy={platforms[0].code}
+            ><span data-copy-label>Copy ↗</span></button
+          >
+        </div>{
+          platforms.map((p, i) => (
+            <div
+              id={`panel-${p.id}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${p.id}`}
+              data-panel={p.id}
+              data-snippet={p.code}
+              hidden={i !== 0}
+              tabindex="0"
+            >
+              <>
+                <pre>
+                  <code>{p.code}</code>
+                </pre>
+                <p class="terminal-note">{p.note}</p>
+              </>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+    <section class="wrap beta-note">
+      <span class="beta-pill">v0.1.0-beta.1</span><p>
+        Early signal. Active development. Windows needs a local live-camera
+        check; Android viewer stats are not available yet. Linux capture, iOS,
+        and RTSPS are not included.
+      </p><a href={`${repo}#beta-notes`}>Beta notes ↗</a>
+    </section>
+  </main>
+  <footer class="wrap">
+    <a class="brand" href="#"
+      ><img
+        src={`${base}brand/mark.svg`}
+        width="30"
+        height="30"
+        alt=""
+      />camrtsp</a
+    ><span>Keep the camera. Open the signal.</span>
+    <button id="toggle-motion" aria-pressed="false">Pause motion</button><a
+      href={repo}>Source code ↗</a
+    ><a href={`${repo}#license`}>MIT / Apache-2.0</a>
+  </footer>
 </Layout>

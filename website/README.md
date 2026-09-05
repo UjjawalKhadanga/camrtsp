@@ -1,22 +1,16 @@
 # camrtsp website
 
-Static landing page for [camrtsp](https://github.com/UjjawalKhadanga/camrtsp).
-
-## Stack
-
-[Astro](https://astro.build) and [Tailwind CSS](https://tailwindcss.com). The build emits HTML, CSS, and a few bytes of vanilla JS for copy buttons and platform tabs. No React runtime.
-
-That is the same shape as [Biome](https://github.com/biomejs/website) and [AstroWind](https://github.com/arthelokyo/astrowind): a static site you can put on GitHub Pages. It is lighter than Ghostty’s Next.js site or Frigate / Immich’s Docusaurus docs sites, which earn their weight once you have a large documentation tree.
+The product site for [camrtsp](https://github.com/UjjawalKhadanga/camrtsp), built with Astro, Tailwind CSS, and vanilla TypeScript. Static output; no client framework or animation dependency.
 
 ## Develop
 
 ```bash
 cd website
-npm install
+npm ci
 npm run dev
 ```
 
-Open http://localhost:4321/
+Open http://localhost:4321/.
 
 ## Build
 
@@ -25,4 +19,14 @@ npm run build
 npm run preview
 ```
 
-GitHub Pages project deploys set `ASTRO_BASE=/camrtsp` so asset URLs resolve under `https://ujjawalkhadanga.github.io/camrtsp/`.
+GitHub Pages project deploys use `ASTRO_BASE=/camrtsp`. The existing website workflow builds and deploys on pushes to main or master.
+
+## Design and interactions
+
+- [Brand assets](public/brand/): vector mark, README banner, raster social preview, and palette.
+- CSS lens, orbital, scan, and wireframe animations respect `prefers-reduced-motion`.
+- The simulated playground supports source selection, TCP/UDP selection, and pause/resume. It never requests camera access or opens a real stream.
+- Platform setup tabs support arrow keys, Home, and End; copying always uses the selected platform’s commands.
+- Clipboard failures show a manual-copy message instead of reporting success.
+
+For changes, check desktop and mobile layouts, keyboard navigation, reduced motion, all playground controls, clipboard behavior, and the Pages base path.

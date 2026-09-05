@@ -28,7 +28,9 @@ class StreamService : Service() {
             val requested = (intent?.getStringExtra(RESOLUTION) ?: "1280x720").split('x').let { Size(it.getOrNull(0)?.toIntOrNull() ?: 1280, it.getOrNull(1)?.toIntOrNull() ?: 720) }
             acquireLocks()
             encoder = CameraEncoder(this, intent?.getStringExtra(CAMERA).orEmpty(), requested, intent?.getIntExtra(FPS, 30) ?: 30, intent?.getIntExtra(BITRATE, 3_000_000) ?: 3_000_000, handle) { error -> stopWithError(error) }.also { it.start() }
-            startForeground(NOTIFICATION_ID, notification("Streaming rtsp://<LAN-IP>:$port$path"))
+            statusMessage = "Streaming rtsp://<LAN-IP>:$port$path"
+            isStreaming = true
+            startForeground(NOTIFICATION_ID, notification(statusMessage))
         } catch (error: Throwable) { stopWithError(error.message ?: "Unable to start streaming") }
         return START_NOT_STICKY
     }
@@ -37,8 +39,10 @@ class StreamService : Service() {
 
     override fun onDestroy() { stopStreaming(); super.onDestroy() }
 
-    private fun stopWithError(error: String) { startForeground(NOTIFICATION_ID, notification("Stopped: $error")); stopStreaming(); stopSelf() }
+    private fun stopWithError(error: String) { statusMessage = "Stopped: $error"; startForeground(NOTIFICATION_ID, notification("Stopped: $error")); stopStreaming(); stopSelf() }
     private fun stopStreaming() {
+        isStreaming = false
+        if (!statusMessage.startsWith("Stopped:")) statusMessage = "Idle · ready for your next stream"
         encoder?.stop(); encoder = null
         if (handle != 0L) runCatching { NativeBridge.nativeStopServer(handle) }; handle = 0L
         wakeLock?.let { if (it.isHeld) it.release() }; wakeLock = null
@@ -57,6 +61,8 @@ class StreamService : Service() {
         .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", PendingIntent.getService(this, 1, Intent(this, StreamService::class.java).setAction(STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)).build()
 
     companion object {
+        @Volatile var statusMessage = "Idle · ready for your next stream"
+        @Volatile var isStreaming = false
         const val CAMERA = "camera"; const val RESOLUTION = "resolution"; const val FPS = "fps"; const val BITRATE = "bitrate"; const val PORT = "port"; const val PATH = "path"; const val USERNAME = "username"; const val PASSWORD = "password"
         private const val CHANNEL = "streaming"; private const val NOTIFICATION_ID = 1; private const val STOP = "com.camrtsp.STOP"
     }
